@@ -352,7 +352,6 @@ function M.setup(windows)
   if config.ui.position ~= 'current' then
     set_win_option('winfixbuf', true, windows)
   end
-  set_win_option('winfixheight', true, windows)
   set_win_option('winfixwidth', true, windows)
 
   M.update_dimensions(windows)
