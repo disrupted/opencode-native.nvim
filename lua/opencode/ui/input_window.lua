@@ -7,6 +7,8 @@ M._hidden = false
 -- Flag to prevent WinClosed autocmd from closing all windows during toggle
 M._toggling = false
 M._resize_scheduled = false
+M._last_applied_height = nil
+M._last_applied_width = nil
 
 -- Cache namespace ID to avoid repeated creation
 local placeholder_ns = vim.api.nvim_create_namespace('input_placeholder')
@@ -46,17 +48,42 @@ local function calculate_height(windows)
   return math.min(max_height, math.max(min_height, content_height))
 end
 
-local function apply_dimensions(windows, height)
+local function get_target_dimensions(windows)
+  local height = calculate_height(windows)
   if config.ui.position == 'current' then
-    pcall(vim.api.nvim_win_set_height, windows.input_win, height)
-    return
+    return { height = height, width = nil }
   end
 
   local total_width = vim.api.nvim_get_option_value('columns', {})
   local width_ratio = state.pre_zoom_width and config.ui.zoom_width or config.ui.window_width
   local width = math.floor(total_width * width_ratio)
+  return { height = height, width = width }
+end
 
-  vim.api.nvim_win_set_config(windows.input_win, { width = width, height = height })
+local function dimensions_changed(target)
+  return M._last_applied_height ~= target.height or M._last_applied_width ~= target.width
+end
+
+local function apply_dimensions(windows, target)
+  if target.width == nil then
+    local ok = pcall(vim.api.nvim_win_set_height, windows.input_win, target.height)
+    if ok then
+      M._last_applied_height = target.height
+      M._last_applied_width = nil
+    end
+    return ok
+  end
+
+  local ok = pcall(vim.api.nvim_win_set_config, windows.input_win, {
+    width = target.width,
+    height = target.height,
+  })
+  if ok then
+    M._last_applied_height = target.height
+    M._last_applied_width = target.width
+  end
+
+  return ok
 end
 
 function M.create_buf()
@@ -255,6 +282,9 @@ local function set_buf_option(option, value, windows)
 end
 
 function M.setup(windows)
+  M._last_applied_height = nil
+  M._last_applied_width = nil
+
   if config.ui.input.text.wrap then
     set_win_option('wrap', true, windows)
     set_win_option('linebreak', true, windows)
@@ -290,8 +320,12 @@ function M.update_dimensions(windows)
     return
   end
 
-  local height = calculate_height(windows)
-  apply_dimensions(windows, height)
+  local target = get_target_dimensions(windows)
+  if not dimensions_changed(target) then
+    return
+  end
+
+  apply_dimensions(windows, target)
 end
 
 function M.schedule_resize(windows)
@@ -301,12 +335,12 @@ function M.schedule_resize(windows)
   end
 
   M._resize_scheduled = true
-  vim.schedule(function()
+  vim.defer_fn(function()
     M._resize_scheduled = false
     if M.mounted(windows) then
       M.update_dimensions(windows)
     end
-  end)
+  end, 1000 / 60) -- debounce to 60 FPS
 end
 
 function M.refresh_placeholder(windows, input_lines)
@@ -567,6 +601,9 @@ function M._show()
 
   local output_window = require('opencode.ui.output_window')
   local was_at_bottom = output_window.viewport_at_bottom
+
+  M._last_applied_height = nil
+  M._last_applied_width = nil
 
   local output_win = windows.output_win
   if not vim.api.nvim_win_is_valid(output_win) then
