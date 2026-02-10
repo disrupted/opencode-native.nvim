@@ -9,6 +9,8 @@ M._toggling = false
 M._resize_scheduled = false
 M._last_applied_height = nil
 M._last_applied_width = nil
+M._blocked_target_height = nil
+M._blocked_target_width = nil
 
 -- Cache namespace ID to avoid repeated creation
 local placeholder_ns = vim.api.nvim_create_namespace('input_placeholder')
@@ -60,8 +62,53 @@ local function get_target_dimensions(windows)
   return { height = height, width = width }
 end
 
-local function dimensions_changed(target)
-  return M._last_applied_height ~= target.height or M._last_applied_width ~= target.width
+local function get_actual_dimensions(windows)
+  local ok_height, height = pcall(vim.api.nvim_win_get_height, windows.input_win)
+  if not ok_height then
+    return nil
+  end
+
+  if config.ui.position == 'current' then
+    return { height = height, width = nil }
+  end
+
+  local ok_width, width = pcall(vim.api.nvim_win_get_width, windows.input_win)
+  if not ok_width then
+    return nil
+  end
+
+  return { height = height, width = width }
+end
+
+local function dimensions_match(left, right)
+  if not left or not right then
+    return false
+  end
+
+  return left.height == right.height and left.width == right.width
+end
+
+local function cache_dimensions(dims)
+  if not dims then
+    return
+  end
+
+  M._last_applied_height = dims.height
+  M._last_applied_width = dims.width
+end
+
+local function clear_blocked_target()
+  M._blocked_target_height = nil
+  M._blocked_target_width = nil
+end
+
+local function block_target(target)
+  M._blocked_target_height = target.height
+  M._blocked_target_width = target.width
+end
+
+local function target_is_blocked(target)
+  return M._blocked_target_height == target.height and M._blocked_target_width == target.width
 end
 
 local function apply_dimensions(windows, target)
@@ -284,6 +331,7 @@ end
 function M.setup(windows)
   M._last_applied_height = nil
   M._last_applied_width = nil
+  clear_blocked_target()
 
   if config.ui.input.text.wrap then
     set_win_option('wrap', true, windows)
@@ -315,17 +363,52 @@ function M.setup(windows)
   require('opencode.ui.context_bar').render(windows)
 end
 
-function M.update_dimensions(windows)
+---@param windows OpencodeWindowState?
+---@param opts? { interactive?: boolean }
+function M.update_dimensions(windows, opts)
+  opts = opts or {}
+
   if not M.mounted(windows) then
     return
   end
 
   local target = get_target_dimensions(windows)
-  if not dimensions_changed(target) then
+  local actual_before = get_actual_dimensions(windows)
+  cache_dimensions(actual_before)
+
+  if dimensions_match(target, actual_before) then
+    clear_blocked_target()
     return
   end
 
-  apply_dimensions(windows, target)
+  -- During interactive typing, avoid shrink attempts. They are the most disruptive
+  -- and can conflict with external window managers that own the final layout.
+  if opts.interactive and actual_before and target.height <= actual_before.height then
+    return
+  end
+
+  if opts.interactive and target_is_blocked(target) then
+    return
+  end
+
+  local ok = apply_dimensions(windows, target)
+  if not ok then
+    if opts.interactive then
+      block_target(target)
+    end
+    return
+  end
+
+  local actual_after = get_actual_dimensions(windows)
+  cache_dimensions(actual_after)
+  if dimensions_match(target, actual_after) then
+    clear_blocked_target()
+    return
+  end
+
+  if opts.interactive then
+    block_target(target)
+  end
 end
 
 function M.schedule_resize(windows)
@@ -338,7 +421,7 @@ function M.schedule_resize(windows)
   vim.defer_fn(function()
     M._resize_scheduled = false
     if M.mounted(windows) then
-      M.update_dimensions(windows)
+      M.update_dimensions(windows, { interactive = true })
     end
   end, 1000 / 60) -- debounce to 60 FPS
 end
@@ -604,6 +687,7 @@ function M._show()
 
   M._last_applied_height = nil
   M._last_applied_width = nil
+  clear_blocked_target()
 
   local output_win = windows.output_win
   if not vim.api.nvim_win_is_valid(output_win) then
