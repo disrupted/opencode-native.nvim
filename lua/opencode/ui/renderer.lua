@@ -5,6 +5,7 @@ local output_window = require('opencode.ui.output_window')
 local permission_window = require('opencode.ui.permission_window')
 local Promise = require('opencode.promise')
 local RenderState = require('opencode.ui.render_state')
+local Timer = require('opencode.ui.timer')
 
 local M = {
   _prev_line_count = 0,
@@ -13,6 +14,8 @@ local M = {
     part_id = nil,
     formatted_data = nil --[[@as Output|nil]],
   },
+  _live_duration_timer = nil,
+  _live_duration_part_ids = {},
 }
 
 local trigger_on_data_rendered = require('opencode.util').debounce(function()
@@ -35,8 +38,100 @@ local trigger_on_data_rendered = require('opencode.util').debounce(function()
   end
 end, config.ui.output.rendering.markdown_debounce_ms or 250)
 
+---@param part OpencodeMessagePart|nil
+---@return boolean
+local function is_timed_part_in_progress(part)
+  if not part or not part.id then
+    return false
+  end
+
+  local is_reasoning = part.type == 'reasoning'
+  local is_tool = part.type == 'tool'
+  if not is_reasoning and not is_tool then
+    return false
+  end
+
+  local time = is_tool and part.state and part.state.time or part.time
+  if type(time) ~= 'table' or not time.start then
+    return false
+  end
+
+  return time['end'] == nil
+end
+
+function M._stop_live_duration_timer()
+  if M._live_duration_timer then
+    M._live_duration_timer:stop()
+    M._live_duration_timer = nil
+  end
+end
+
+---@return boolean
+function M._tick_live_durations()
+  if not output_window.mounted() then
+    M._stop_live_duration_timer()
+    return false
+  end
+
+  local has_active_parts = false
+  for part_id in pairs(M._live_duration_part_ids) do
+    local rendered_part = M._render_state:get_part(part_id)
+    local part = rendered_part and rendered_part.part or nil
+
+    if is_timed_part_in_progress(part) then
+      has_active_parts = true
+      M._rerender_part(part_id)
+    else
+      M._live_duration_part_ids[part_id] = nil
+    end
+  end
+
+  if not has_active_parts then
+    M._stop_live_duration_timer()
+    return false
+  end
+
+  return true
+end
+
+function M._sync_live_duration_timer()
+  if next(M._live_duration_part_ids) == nil then
+    M._stop_live_duration_timer()
+    return
+  end
+
+  if M._live_duration_timer and M._live_duration_timer:is_running() then
+    return
+  end
+
+  M._live_duration_timer = Timer.new({
+    interval = 1000,
+    on_tick = M._tick_live_durations,
+    repeat_timer = true,
+  })
+  M._live_duration_timer:start()
+end
+
+---@param part OpencodeMessagePart|nil
+function M._track_live_duration_part(part)
+  if not part or not part.id then
+    return
+  end
+
+  if is_timed_part_in_progress(part) then
+    M._live_duration_part_ids[part.id] = true
+  else
+    M._live_duration_part_ids[part.id] = nil
+  end
+
+  M._sync_live_duration_timer()
+end
+
 ---Reset renderer state
 function M.reset()
+  M._stop_live_duration_timer()
+  M._live_duration_part_ids = {}
+
   M._prev_line_count = 0
   M._render_state:reset()
   M._last_part_formatted = { part_id = nil, formatted_data = nil }
@@ -521,6 +616,9 @@ end
 ---Remove part from buffer and adjust subsequent line positions
 ---@param part_id string Part ID
 function M._remove_part_from_buffer(part_id)
+  M._live_duration_part_ids[part_id] = nil
+  M._sync_live_duration_timer()
+
   local cached = M._render_state:get_part(part_id)
   if not cached or not cached.line_start or not cached.line_end then
     return
@@ -725,6 +823,8 @@ function M.on_part_updated(properties, revert_index)
     end
   end
 
+  M._track_live_duration_part(part)
+
   local formatted = formatter.format_part(part, message, is_last_part)
 
   if part.callID and state.pending_permissions then
@@ -788,6 +888,9 @@ function M.on_part_removed(properties)
   if not part_id then
     return
   end
+
+  M._live_duration_part_ids[part_id] = nil
+  M._sync_live_duration_timer()
 
   local cached = M._render_state:get_part(part_id)
   if cached and cached.message_id then
