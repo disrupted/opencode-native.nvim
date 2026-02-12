@@ -51,6 +51,17 @@ local function is_timed_part_in_progress(part)
     return false
   end
 
+  if is_tool then
+    if part.tool == 'question' then
+      return false
+    end
+
+    local status = part.state and part.state.status
+    if status ~= 'running' then
+      return false
+    end
+  end
+
   local time = is_tool and part.state and part.state.time or part.time
   if type(time) ~= 'table' or not time.start then
     return false
