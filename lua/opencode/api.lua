@@ -236,6 +236,12 @@ function M.quick_chat(message, range)
   quick_chat.quick_chat(prompt, { context_config = ctx }, range)
 end
 
+---@param context_key OpencodeToggleableContextKey
+---@return boolean|nil enabled
+function M.toggle_context(context_key)
+  return require('opencode.context').toggle_context(context_key)
+end
+
 function M.toggle_pane()
   ui.toggle_pane()
 end

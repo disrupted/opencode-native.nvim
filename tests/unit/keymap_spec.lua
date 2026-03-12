@@ -39,6 +39,7 @@ describe('opencode.keymap', function()
     mock_api = {
       open_input = function() end,
       toggle = function() end,
+      toggle_context = function() end,
       submit_input_prompt = function() end,
       permission_accept = function() end,
       permission_accept_all = function() end,
@@ -46,6 +47,7 @@ describe('opencode.keymap', function()
       commands = {
         open_input = { desc = 'Open input window' },
         toggle = { desc = 'Toggle opencode windows' },
+        toggle_context = { desc = 'Toggle prompt context' },
         submit_input_prompt = { desc = 'Submit input prompt' },
       },
     }
@@ -158,6 +160,27 @@ describe('opencode.keymap', function()
       local keymap_entry = set_keymaps[1]
       assert.is_not_nil(keymap_entry.opts.desc, 'Should have a description from API fallback')
       assert.equal('Toggle opencode windows', keymap_entry.opts.desc)
+    end)
+
+    it('supports parameterized function names with #suffix', function()
+      local called_with = nil
+      mock_api.toggle_context = function(context_key)
+        called_with = context_key
+      end
+
+      local test_keymap = {
+        editor = {
+          ['<leader>tcf'] = { 'toggle_context#current_file' },
+        },
+      }
+
+      keymap.setup(test_keymap)
+
+      assert.equal(1, #set_keymaps, 'Should set up 1 keymap')
+      assert.equal('Toggle prompt context', set_keymaps[1].opts.desc)
+
+      set_keymaps[1].callback()
+      assert.equal('current_file', called_with)
     end)
   end)
 

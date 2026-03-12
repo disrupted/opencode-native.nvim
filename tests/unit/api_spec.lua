@@ -1,6 +1,7 @@
 local api = require('opencode.api')
 local core = require('opencode.core')
 local ui = require('opencode.ui.ui')
+local context = require('opencode.context')
 local state = require('opencode.state')
 local stub = require('luassert.stub')
 local assert = require('luassert')
@@ -104,6 +105,12 @@ describe('opencode.api', function()
         new_session = true,
         focus = 'output',
       })
+
+      assert.is_function(api.toggle_context, 'Should export toggle_context')
+      stub(context, 'toggle_context').returns(true)
+      local enabled = api.toggle_context('current_file')
+      assert.is_true(enabled)
+      assert.stub(context.toggle_context).was_called_with('current_file')
     end)
   end)
 
