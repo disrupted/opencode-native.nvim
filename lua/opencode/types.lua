@@ -65,7 +65,7 @@
 ---@field share? SessionShareInfo
 
 ---@class OpencodeKeymapEntry
----@field [1] string # Function name
+---@field [1] string # Function name, optionally suffixed with #<arg> to pass one string arg
 ---@field mode? string|string[] # Mode(s) for the keymap
 ---@field desc? string # Keymap description
 

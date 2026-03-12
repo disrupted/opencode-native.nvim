@@ -655,6 +655,12 @@ Example keymap for silent add:
 ['<leader>oY'] = { 'add_visual_selection', { open_input = false }, mode = {'v'} }
 ```
 
+Example keymap for toggling a specific context using a parameterized API action:
+
+```lua
+['<leader>ocf'] = { 'toggle_context#current_file', desc = 'Toggle current file context' }
+```
+
 ### Run opts
 
 You can pass additional options when running a prompt via command or API:

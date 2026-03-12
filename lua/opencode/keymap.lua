@@ -26,8 +26,14 @@ local function process_keymap_entry(keymap_config, default_modes, base_opts, def
       -- Skip keymap if explicitly set to false (disabled)
     elseif config_entry then
       local func_name = config_entry[1]
-      local func_args = config_entry[2]
-      local raw_callback = type(func_name) == 'function' and func_name or api[func_name]
+      local resolved_func_name = func_name
+      local inline_arg = nil
+      if type(func_name) == 'string' then
+        resolved_func_name, inline_arg = func_name:match('^([^#]+)#(.+)$')
+        resolved_func_name = resolved_func_name or func_name
+      end
+      local func_args = config_entry[2] or inline_arg
+      local raw_callback = type(func_name) == 'function' and func_name or api[resolved_func_name]
       local callback = raw_callback
 
       if raw_callback and func_args then
@@ -38,7 +44,7 @@ local function process_keymap_entry(keymap_config, default_modes, base_opts, def
 
       local modes = config_entry.mode or default_modes
       local opts = vim.tbl_deep_extend('force', {}, base_opts)
-      opts.desc = config_entry.desc or cmds[func_name] and cmds[func_name].desc
+      opts.desc = config_entry.desc or cmds[resolved_func_name] and cmds[resolved_func_name].desc
 
       if callback then
         if defer_to_completion then
