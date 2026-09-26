@@ -133,6 +133,20 @@ require('opencode').setup({
   opencode_executable = 'opencode', -- Name of your opencode binary
   snapshot_path = nil, -- Override base path for the snapshot git directory (default: $XDG_DATA_HOME/opencode). Appends /snapshot/<project_id>/<worktree_hash>
 
+  -- Agent harness: 'opencode' uses the opencode HTTP API; 'acp' drives an
+  -- Agent Client Protocol agent (Claude Code, Codex, Gemini CLI, Goose, ...) over stdio.
+  -- ACP sessions are flat chat: subagents, diffs, fork/undo/compact/share and MCP management
+  -- are opencode-only and are disabled when harness = 'acp'.
+  harness = 'opencode',
+  acp = {
+    command = nil,                 -- Agent executable (full path recommended). Required when harness = 'acp'
+    args = {},                     -- Arguments passed to the agent executable
+    env = {},                      -- Extra environment variables for the agent process
+    protocol_version = 1,          -- ACP protocol version requested during initialize
+    auth_method = nil,             -- Auth method id when the agent advertises protocol-driven auth
+    client_name = 'opencode.nvim', -- clientInfo.name sent during initialize
+  },
+
   -- Server configuration for custom/external opencode servers
   server = {
     url = nil,             -- URL/hostname (e.g., 'http://192.168.1.100', 'localhost', 'https://myserver.com')

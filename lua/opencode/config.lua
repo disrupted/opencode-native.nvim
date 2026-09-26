@@ -13,6 +13,15 @@ M.defaults = {
   keymap_prefix = '<leader>o',
   opencode_executable = 'opencode',
   lock_session_to_directory = false,
+  harness = 'opencode',
+  acp = {
+    command = nil,
+    args = {},
+    env = {},
+    protocol_version = 1,
+    auth_method = nil,
+    client_name = 'opencode.nvim',
+  },
   server = {
     url = nil,
     port = nil,
@@ -434,6 +443,10 @@ function M.setup(opts)
   opts = opts or {}
 
   M.values = vim.tbl_deep_extend('force', M.values, opts --[[@as OpencodeConfig]])
+
+  if M.values.harness ~= 'opencode' and M.values.harness ~= 'acp' then
+    error("opencode.nvim: config.harness must be 'opencode' or 'acp'")
+  end
 
   if opts.default_global_keymaps == false then
     M.values.keymap.editor = opts.keymap and opts.keymap.editor or {}

@@ -758,6 +758,15 @@ M.cancel = Promise.async(function(session_id, tab_id, opts)
 end)
 
 M.opencode_ok = Promise.async(function()
+  if config.harness == 'acp' then
+    local command = config.acp and config.acp.command
+    if type(command) ~= 'string' or command == '' or vim.fn.executable(command) == 0 then
+      vim.notify('ACP harness requires config.acp.command to be an executable agent', vim.log.levels.ERROR)
+      return false
+    end
+    return true
+  end
+
   if vim.fn.executable(config.opencode_executable) == 0 then
     vim.notify(
       'opencode command not found - please install and configure opencode before using this plugin',

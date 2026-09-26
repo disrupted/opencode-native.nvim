@@ -230,6 +230,14 @@
 ---@field password? string | fun(): string | nil -- Basic auth password; falls back to password_file, OPENCODE_PASSWORD, then OPENCODE_SERVER_PASSWORD
 ---@field password_file? string -- File used to persist a generated V1 password; fixed ports default to an owner-only per-port state file
 
+---@class OpencodeAcpConfig
+---@field command? string -- Agent executable. Full path recommended; resolved with vim.fn.exepath
+---@field args string[] -- Arguments passed to the agent executable
+---@field env table<string, string> -- Extra environment variables for the agent process
+---@field protocol_version integer -- ACP protocol version requested during initialize (default: 1)
+---@field auth_method? string -- Auth method id to authenticate with when the agent advertises protocol-driven auth
+---@field client_name string -- clientInfo.name sent during initialize (default: 'opencode.nvim')
+
 ---@class OpencodeUIFloatConfig
 ---@field width number # Width in columns, or ratio when <= 1 (default: 0.95)
 ---@field height number # Height in rows, or ratio when <= 1 (default: 0.9)
@@ -423,7 +431,9 @@
 ---@field keymap_prefix string
 ---@field opencode_executable 'opencode' | string -- Command run for calling opencode
 ---@field lock_session_to_directory boolean -- If true, active session is preserved across DirChanged events
+---@field harness 'opencode' | 'acp' -- Active agent harness backend (default: 'opencode')
 ---@field server OpencodeServerConfig -- Custom/external server configuration
+---@field acp OpencodeAcpConfig -- ACP agent configuration (used when harness == 'acp')
 ---@field keymap OpencodeKeymap
 ---@field ui OpencodeUIConfig
 ---@field context OpencodeContextConfig

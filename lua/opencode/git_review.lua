@@ -50,7 +50,10 @@ local function review_turn(context, message_id, to, file_path, message_count)
   if file_path and session_diff.toggle_file(file_path, message_id, context.session.id) then
     return
   end
-  local connection = assert(v2_connection())
+  local connection = v2_connection()
+  if not connection then
+    error('Diff review is not supported by the active ACP agent', 0)
+  end
   ---@cast connection OpencodeV2Connection
   local files = connection.operations.diff_session(connection, context.session.id, message_id, to, utils.apply_reverse_path_map):await()
   if not is_current(context) then
@@ -205,7 +208,10 @@ end)
 
 ---@type fun(): Promise<table[]>
 M.list_review_turns = review_action(function(context)
-  local connection = assert(v2_connection())
+  local connection = v2_connection()
+  if not connection then
+    error('Diff review is not supported by the active ACP agent', 0)
+  end
   ---@cast connection OpencodeV2Connection
   local turns = {}
   local cursor

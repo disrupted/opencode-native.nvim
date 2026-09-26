@@ -330,6 +330,9 @@ end
 ---@param opts? {force_health_check?: boolean}
 ---@return Promise<OpencodeServer>
 function M.ensure_server(opts)
+  if config.harness == 'acp' then
+    return require('opencode.protocols.acp.job').ensure_agent(opts)
+  end
   if pending_connection then
     return pending_connection
   end

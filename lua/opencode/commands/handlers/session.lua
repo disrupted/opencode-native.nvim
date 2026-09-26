@@ -6,6 +6,7 @@ local ui = require('opencode.ui.ui')
 local window_actions = require('opencode.commands.handlers.window').actions
 local session_runtime = require('opencode.services.session_runtime')
 local agent_model = require('opencode.services.agent_model')
+local capabilities = require('opencode.capabilities')
 
 local M = {
   actions = {},
@@ -336,6 +337,9 @@ function M.actions.navigate_session_tree(direction, interaction, wrap, empty_pol
 
   local dir = tree_directions[direction]
   if dir then
+    if not capabilities.require(state.opencode_server, 'children', 'Session tree navigation') then
+      return
+    end
     local target_id = dir.get_target(active)
     if not target_id then
       if direction == 'sibling' then

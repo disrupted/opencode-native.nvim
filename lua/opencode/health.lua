@@ -24,6 +24,10 @@ local function get_opencode_version()
 end
 
 local function check_opencode_cli()
+  if config.harness == 'acp' then
+    return
+  end
+
   health.start('OpenCode CLI')
 
   local state = require('opencode.state')
@@ -64,7 +68,25 @@ local function check_opencode_server()
   local ok, server = pcall(function()
     return server_job.ensure_server({ force_health_check = true }):wait()
   end)
-  if not ok or not server or not server.url or not server.protocol then
+  if not ok or not server or not server.protocol then
+    health.error('Failed to establish an authenticated opencode connection: ' .. vim.inspect(server))
+    return
+  end
+
+  if server.protocol == 'acp' then
+    health.ok(string.format('ACP agent %s is connected', tostring(server.version)))
+    local created_for_check = previous_connection == nil and state.opencode_server == server
+    if created_for_check then
+      state.jobs.clear_server()
+      server:close():wait()
+      health.ok('ACP agent connection closed successfully')
+    else
+      health.info('ACP agent connection left running')
+    end
+    return
+  end
+
+  if not server.url then
     health.error('Failed to establish an authenticated opencode connection: ' .. vim.inspect(server))
     return
   end
